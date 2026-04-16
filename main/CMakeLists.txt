@@ -11,6 +11,7 @@ idf_component_register(
         "web/index.html"
     REQUIRES
         nvs_flash
+        esp_netif
         esp_wifi
         esp_event
         esp_http_server
