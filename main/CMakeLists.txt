@@ -2,11 +2,16 @@ idf_component_register(
     SRCS
         "main.c"
         "../wifi/wifi_sta.c"
+        "../http/http_server.c"
     INCLUDE_DIRS
         "."
         "../wifi"
+        "../http"
+    EMBED_FILES
+        "web/index.html"
     REQUIRES
         nvs_flash
         esp_wifi
         esp_event
+        esp_http_server
 )
