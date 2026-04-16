@@ -20,11 +20,11 @@ static const char *TAG = "http_server";
 
 /* ----------------------------------------------------------------
  * 嵌入的静态资源（由 CMakeLists EMBED_FILES 指令生成）
- * 符号名规则：_binary_<路径中/和.替换为_>_start / _end
- * web/index.html -> _binary_web_index_html_start
+ * 符号名规则：ESP-IDF 只取文件名部分（不含目录），将非字母数字字符替换为 _
+ * web/index.html -> 取 index.html -> _binary_index_html_start
  * ---------------------------------------------------------------- */
-extern const uint8_t index_html_start[] asm("_binary_web_index_html_start");
-extern const uint8_t index_html_end[]   asm("_binary_web_index_html_end");
+extern const uint8_t index_html_start[] asm("_binary_index_html_start");
+extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
 
 /* 服务器句柄，用于 stop 时释放 */
 static httpd_handle_t s_server = NULL;
