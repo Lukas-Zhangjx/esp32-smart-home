@@ -3,10 +3,12 @@ idf_component_register(
         "main.c"
         "../wifi/wifi_sta.c"
         "../http/http_server.c"
+        "../sensor/dht11.c"
     INCLUDE_DIRS
         "."
         "../wifi"
         "../http"
+        "../sensor"
     EMBED_FILES
         "web/index.html"
     REQUIRES
