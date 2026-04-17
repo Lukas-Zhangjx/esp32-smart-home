@@ -33,8 +33,9 @@ static const char *TAG = "dht11";
 /* 记录初始化时配置的 GPIO 编号 */
 static gpio_num_t s_gpio_num = GPIO_NUM_NC;
 
-/* 等待总线电平变化的超时时间（μs） */
-#define DHT11_TIMEOUT_US  100
+/* 等待总线电平变化的超时时间（μs）
+ * DHT11 响应信号最长 80μs，留足余量设为 200μs */
+#define DHT11_TIMEOUT_US  200
 
 
 /**
