@@ -26,6 +26,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/portmacro.h"
 #include "rom/ets_sys.h"
 
 static const char *TAG = "dht11";
@@ -111,14 +112,20 @@ esp_err_t dht11_read(dht11_data_t *data)
     gpio_set_level(s_gpio_num, 1);
     ets_delay_us(30);
 
-    /* ---- 2. 等待 DHT11 响应信号 ---- */
-    /* DHT11 先拉低 80μs */
+    /* ---- 2 & 3. 关闭中断后进行时序关键段 ----
+     * DHT11 响应和数据读取总耗时约 4ms，期间不能被 FreeRTOS tick 打断
+     * 否则会错过 26~70μs 级别的时序窗口导致超时或误判 */
+    portDISABLE_INTERRUPTS();
+
+    /* 等待 DHT11 响应信号：先拉低 80μs */
     if (wait_for_level(0) < 0) {
+        portENABLE_INTERRUPTS();
         ESP_LOGE(TAG, "timeout waiting for DHT11 response low");
         return ESP_ERR_TIMEOUT;
     }
     /* 再拉高 80μs */
     if (wait_for_level(1) < 0) {
+        portENABLE_INTERRUPTS();
         ESP_LOGE(TAG, "timeout waiting for DHT11 response high");
         return ESP_ERR_TIMEOUT;
     }
@@ -127,6 +134,7 @@ esp_err_t dht11_read(dht11_data_t *data)
     for (int i = 0; i < 40; i++) {
         /* 每个 bit 以 50μs 低电平开始 */
         if (wait_for_level(0) < 0) {
+            portENABLE_INTERRUPTS();
             ESP_LOGE(TAG, "timeout at bit %d low", i);
             return ESP_ERR_TIMEOUT;
         }
@@ -134,6 +142,7 @@ esp_err_t dht11_read(dht11_data_t *data)
          *   < 40μs → bit 0
          *   >= 40μs → bit 1 */
         if (wait_for_level(1) < 0) {
+            portENABLE_INTERRUPTS();
             ESP_LOGE(TAG, "timeout at bit %d high start", i);
             return ESP_ERR_TIMEOUT;
         }
@@ -146,6 +155,8 @@ esp_err_t dht11_read(dht11_data_t *data)
             raw[i / 8] |= 1;
         }
     }
+
+    portENABLE_INTERRUPTS();
 
     /* ---- 4. 校验和验证 ---- */
     uint8_t checksum = raw[0] + raw[1] + raw[2] + raw[3];
