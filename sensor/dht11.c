@@ -24,7 +24,6 @@
 #include <string.h>
 #include "dht11.h"
 #include "esp_log.h"
-#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "rom/ets_sys.h"

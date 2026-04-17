@@ -31,6 +31,7 @@ static void main_task(void *pvParameters)
         ESP_LOGE(TAG, "led init failed");
     }
 
+
     /* 初始化 DHT11，dht11_init 内部会等待 1s 让传感器稳定 */
     if (dht11_init(DHT11_GPIO) != ESP_OK) {
         ESP_LOGE(TAG, "dht11 init failed");
