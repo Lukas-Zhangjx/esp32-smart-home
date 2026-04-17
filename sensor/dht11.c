@@ -108,14 +108,14 @@ esp_err_t dht11_read(dht11_data_t *data)
     gpio_set_level(s_gpio_num, 0);
     vTaskDelay(pdMS_TO_TICKS(20)); /* 20ms，大于最低要求 18ms */
 
+    /* ---- 2 & 3. 关闭中断后进行时序关键段 ----
+     * 必须在释放总线前关中断，否则 30μs 高电平期间若发生 task switch，
+     * 高电平持续时间超过 DHT11 要求的 20~40μs，导致起始信号无效 */
+    portDISABLE_INTERRUPTS();
+
     /* 释放总线（拉高），等待 DHT11 响应，等待时间 20~40μs */
     gpio_set_level(s_gpio_num, 1);
     ets_delay_us(30);
-
-    /* ---- 2 & 3. 关闭中断后进行时序关键段 ----
-     * DHT11 响应和数据读取总耗时约 4ms，期间不能被 FreeRTOS tick 打断
-     * 否则会错过 26~70μs 级别的时序窗口导致超时或误判 */
-    portDISABLE_INTERRUPTS();
 
     /* 等待 DHT11 响应信号：先拉低 80μs */
     if (wait_for_level(0) < 0) {
@@ -170,6 +170,6 @@ esp_err_t dht11_read(dht11_data_t *data)
     data->humidity    = (float)raw[0];
     data->temperature = (float)raw[2];
 
-    ESP_LOGD(TAG, "temp=%.1f humi=%.1f", data->temperature, data->humidity);
+    ESP_LOGI(TAG, "read ok: temp=%.1f humi=%.1f", data->temperature, data->humidity);
     return ESP_OK;
 }
