@@ -107,14 +107,12 @@ static void output_task(void *pvParameters)
     }
 
 
-    /* --- 主循环：LED 反映障碍物检测状态 --- */
+    /* 系统运行指示：常亮 */
+    led_on();
+
+    /* --- 主循环 --- */
     while (1) {
-        if (obstacle_detected()) {
-            led_on();
-        } else {
-            led_off();
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
