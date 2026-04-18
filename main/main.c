@@ -27,10 +27,17 @@ static void io_task(void *pvParameters)
     /* --- 模块初始化 --- */
     obstacle_init(OBSTACLE_GPIO);
 
+    int last_state = -1; /* 上次状态，-1 表示未初始化 */
+
     /* --- 主循环 --- */
     while (1) {
-        /* 障碍物检测模块 */
-        ESP_LOGI(TAG, "obstacle: %s", obstacle_detected() ? "DETECTED" : "clear");
+        int state = obstacle_detected();
+
+        /* 仅在状态变化时打印，避免频繁刷日志 */
+        if (state != last_state) {
+            ESP_LOGI(TAG, "obstacle: %s", state ? "DETECTED" : "clear");
+            last_state = state;
+        }
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
