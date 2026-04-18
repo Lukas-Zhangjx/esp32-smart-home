@@ -29,6 +29,8 @@ static void io_task(void *pvParameters)
 
     int last_state = -1; /* 上次状态，-1 表示未初始化 */
 
+    ESP_LOGI(TAG, "io_task started");
+
     /* --- 主循环 --- */
     while (1) {
         int state = obstacle_detected();
@@ -54,6 +56,8 @@ static void sensor_task(void *pvParameters)
     /* --- 模块初始化 --- */
     esp_log_level_set("dht11", ESP_LOG_NONE); /* DHT11 模块待更换，屏蔽日志 */
     dht11_init(DHT11_GPIO);
+
+    ESP_LOGI(TAG, "sensor_task started");
 
     /* --- 主循环 --- */
     while (1) {
@@ -90,6 +94,8 @@ static void output_task(void *pvParameters)
 {
     /* --- 模块初始化 --- */
     led_init(LED_GPIO);
+
+    ESP_LOGI(TAG, "output_task started");
 
     /* --- 主循环 --- */
     while (1) {
