@@ -17,76 +17,86 @@ static const char *TAG = "main";
 #define OBSTACLE_GPIO GPIO_NUM_22
 
 
-/**
- * @brief  障碍物检测任务：初始化模块，循环读取并打印状态
- *
- * @param pvParameters  未使用
- */
-static void obstacle_task(void *pvParameters)
+/* ================================================================
+ * io_task：GPIO 数字输入类模块
+ *   职责：读取所有开关量输入，如障碍检测、按键等
+ *   周期：100ms
+ * ================================================================ */
+static void io_task(void *pvParameters)
 {
-    if (obstacle_init(OBSTACLE_GPIO) != ESP_OK) {
-        ESP_LOGE(TAG, "obstacle init failed, task exit");
-        vTaskDelete(NULL);
-        return;
-    }
+    /* --- 模块初始化 --- */
+    obstacle_init(OBSTACLE_GPIO);
 
+    /* --- 主循环 --- */
     while (1) {
+        /* 障碍物检测模块 */
         ESP_LOGI(TAG, "obstacle: %s", obstacle_detected() ? "DETECTED" : "clear");
-        vTaskDelay(pdMS_TO_TICKS(500));
+
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
 
-/**
- * @brief  温湿度传感器任务：初始化 DHT11，定时更新 HTTP 缓存
- *         DHT11 采样周期限制 >= 2s
- *
- * @param pvParameters  未使用
- */
+/* ================================================================
+ * sensor_task：模拟/总线传感器类模块
+ *   职责：读取所有传感器并更新数据缓存，供 network_task 使用
+ *   周期：2000ms（受 DHT11 采样限制）
+ * ================================================================ */
 static void sensor_task(void *pvParameters)
 {
-    /* DHT11 传感器暂时屏蔽（模块待更换），关闭其日志避免干扰 */
-    esp_log_level_set("dht11", ESP_LOG_NONE);
+    /* --- 模块初始化 --- */
+    esp_log_level_set("dht11", ESP_LOG_NONE); /* DHT11 模块待更换，屏蔽日志 */
     dht11_init(DHT11_GPIO);
 
+    /* --- 主循环 --- */
     while (1) {
+        /* DHT11 温湿度：读取并写入 HTTP 缓存 */
         http_server_update_sensor();
+
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
 
 
-/**
- * @brief  主任务：初始化公共模块，创建各功能子任务后退出
- *
- * @param pvParameters  未使用
- */
-static void main_task(void *pvParameters)
+/* ================================================================
+ * network_task：网络服务类模块
+ *   职责：启动并维护所有网络服务，如 HTTP Server、MQTT 等
+ * ================================================================ */
+static void network_task(void *pvParameters)
 {
-    ESP_LOGI(TAG, "main_task started");
-
-    /* 初始化 LED */
-    if (led_init(LED_GPIO) != ESP_OK) {
-        ESP_LOGE(TAG, "led init failed");
-    }
-
-    /* 启动 HTTP 服务器 */
+    /* --- 模块初始化 --- */
     if (http_server_start() != ESP_OK) {
         ESP_LOGE(TAG, "http server failed to start");
     }
 
-    /* 创建各功能子任务 */
-    xTaskCreate(obstacle_task, "obstacle_task", 2048, NULL, 4, NULL);
-    xTaskCreate(sensor_task,   "sensor_task",   4096, NULL, 4, NULL);
-
-    ESP_LOGI(TAG, "all tasks created, main_task exit");
+    /* HTTP Server 内部由 esp_http_server 驱动，此任务无需主循环 */
     vTaskDelete(NULL);
 }
 
 
-/**
- * @brief  ESP-IDF 入口：初始化 NVS，连接 WiFi，创建主任务
- */
+/* ================================================================
+ * output_task：输出类模块
+ *   职责：驱动所有输出设备，如 LED、OLED 等
+ *   周期：根据输出设备需求定义
+ * ================================================================ */
+static void output_task(void *pvParameters)
+{
+    /* --- 模块初始化 --- */
+    led_init(LED_GPIO);
+
+    /* --- 主循环 --- */
+    while (1) {
+        /* TODO: LED 状态根据业务逻辑驱动（当前保持初始熄灭状态） */
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+
+/* ================================================================
+ * app_main：系统入口
+ *   职责：初始化系统级组件，创建所有框架任务
+ * ================================================================ */
 void app_main(void)
 {
     /* 初始化 NVS */
@@ -100,6 +110,9 @@ void app_main(void)
     /* 连接 WiFi，超时后继续运行 */
     wifi_station_startup();
 
-    /* 创建主任务 */
-    xTaskCreate(main_task, "main_task", 4096, NULL, 5, NULL);
+    /* 创建框架任务 */
+    xTaskCreate(io_task,      "io_task",      2048, NULL, 4, NULL);
+    xTaskCreate(sensor_task,  "sensor_task",  4096, NULL, 4, NULL);
+    xTaskCreate(network_task, "network_task", 4096, NULL, 5, NULL);
+    xTaskCreate(output_task,  "output_task",  2048, NULL, 3, NULL);
 }
