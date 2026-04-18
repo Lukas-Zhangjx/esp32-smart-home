@@ -55,9 +55,7 @@ void http_server_update_sensor(void)
     esp_err_t ret = dht11_read(&data);
     if (ret == ESP_OK) {
         s_sensor_cache = data; /* 更新缓存 */
-    } else {
-        ESP_LOGW("http_server", "dht11_read failed: %d, using cached data", ret);
-    }
+    } /* 读取失败时保留上次缓存，不打印日志（DHT11 模块待更换） */
 }
 
 void http_server_update_obstacle(int detected)
