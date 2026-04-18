@@ -151,8 +151,8 @@ void app_main(void)
     wifi_station_startup();
 
     /* 创建框架任务 */
-    xTaskCreate(io_task,      "io_task",      2048, NULL, 4, NULL);
+    xTaskCreate(io_task,      "io_task",      4096, NULL, 4, NULL);
     xTaskCreate(sensor_task,  "sensor_task",  4096, NULL, 4, NULL);
     xTaskCreate(network_task, "network_task", 4096, NULL, 5, NULL);
-    xTaskCreate(output_task,  "output_task",  2048, NULL, 3, NULL);
+    xTaskCreate(output_task,  "output_task",  4096, NULL, 3, NULL);
 }
