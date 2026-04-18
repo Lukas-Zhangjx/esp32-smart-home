@@ -1,63 +1,129 @@
 #include <stdio.h>
-#include <stdbool.h>
-#include <unistd.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "nvs_flash.h"
 #include "wifi_sta.h"
 #include "http_server.h"
 #include "dht11.h"
 #include "led.h"
+#include "obstacle.h"
 
 static const char *TAG = "main";
 
-/* DHT11 DATA 引脚，接 GPIO23 */
-#define DHT11_GPIO  GPIO_NUM_23
+/* 引脚定义 */
+#define DHT11_GPIO    GPIO_NUM_23
+#define LED_GPIO      GPIO_NUM_2
+#define OBSTACLE_GPIO GPIO_NUM_22
 
-/* LED 引脚，接 GPIO2 */
-#define LED_GPIO    GPIO_NUM_2
 
-/**
- * @brief  主任务：WiFi 连接完成后启动 HTTP 服务器，进入主循环
- *
- * @param pvParameters  FreeRTOS 任务参数（未使用）
- */
-static void main_task(void *pvParameters)
+/* ================================================================
+ * io_task：GPIO 数字输入类模块
+ *   职责：读取所有开关量输入，如障碍检测、按键等
+ *   周期：100ms
+ * ================================================================ */
+static void io_task(void *pvParameters)
 {
-    ESP_LOGI(TAG, "main_task started");
+    /* --- 模块初始化 --- */
+    obstacle_init(OBSTACLE_GPIO);
 
-    /* 初始化 LED，配置 GPIO2 为推挽输出，默认熄灭 */
-    if (led_init(LED_GPIO) != ESP_OK) {
-        ESP_LOGE(TAG, "led init failed");
-    }
+    int last_state = -1; /* 上次状态，-1 表示未初始化 */
 
+    ESP_LOGI(TAG, "io_task started");
 
-    /* 初始化 DHT11，dht11_init 内部会等待 1s 让传感器稳定 */
-    if (dht11_init(DHT11_GPIO) != ESP_OK) {
-        ESP_LOGE(TAG, "dht11 init failed");
-        /* 初始化失败不退出，HTTP 服务器仍可正常运行，传感器显示 0 */
-    }
-
-    /* 启动 HTTP 服务器，对外提供页面与 API */
-    if (http_server_start() != ESP_OK) {
-        ESP_LOGE(TAG, "http server failed to start, task exit");
-        vTaskDelete(NULL);
-        return;
-    }
-
+    /* --- 主循环 --- */
     while (1) {
-        /* 每 2 秒读取一次 DHT11 并更新缓存（DHT11 采样周期限制 >= 2s） */
+        int state = obstacle_detected();
+
+        /* 仅在状态变化时打印和更新缓存 */
+        if (state != last_state) {
+            ESP_LOGI(TAG, "obstacle: %s", state ? "DETECTED" : "clear");
+            http_server_update_obstacle(state);
+            last_state = state;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+
+/* ================================================================
+ * sensor_task：模拟/总线传感器类模块
+ *   职责：读取所有传感器并更新数据缓存，供 network_task 使用
+ *   周期：2000ms（受 DHT11 采样限制）
+ * ================================================================ */
+static void sensor_task(void *pvParameters)
+{
+    /* --- 模块初始化 --- */
+    esp_log_level_set("dht11", ESP_LOG_NONE); /* DHT11 模块待更换，屏蔽日志 */
+    dht11_init(DHT11_GPIO);
+
+    ESP_LOGI(TAG, "sensor_task started");
+
+    /* --- 主循环 --- */
+    while (1) {
+        /* DHT11 温湿度：读取并写入 HTTP 缓存 */
         http_server_update_sensor();
+
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
 
-/**
- * @brief  ESP-IDF 入口：初始化 NVS，连接 WiFi，创建主任务
- */
+
+/* ================================================================
+ * network_task：网络服务类模块
+ *   职责：启动并维护所有网络服务，如 HTTP Server、MQTT 等
+ * ================================================================ */
+static void network_task(void *pvParameters)
+{
+    /* --- 模块初始化 --- */
+    if (http_server_start() != ESP_OK) {
+        ESP_LOGE(TAG, "http server failed to start");
+    }
+
+    /* HTTP Server 内部由 esp_http_server 驱动，此任务无需主循环 */
+    vTaskDelete(NULL);
+}
+
+
+/* ================================================================
+ * output_task：输出类模块
+ *   职责：驱动所有输出设备，如 LED、OLED 等
+ *   周期：根据输出设备需求定义
+ * ================================================================ */
+static void output_task(void *pvParameters)
+{
+    /* --- 模块初始化 --- */
+    led_init(LED_GPIO);
+
+    ESP_LOGI(TAG, "output_task started");
+
+    /* GPIO2 闪烁 3 次 */
+    for (int i = 0; i < 3; i++) {
+        led_on();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        led_off();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
+
+    /* 系统运行指示：常亮 */
+    led_on();
+
+    /* --- 主循环 --- */
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+
+/* ================================================================
+ * app_main：系统入口
+ *   职责：初始化系统级组件，创建所有框架任务
+ * ================================================================ */
 void app_main(void)
 {
-    /* 初始化 NVS，WiFi 凭据存储依赖此组件 */
+    /* 初始化 NVS */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -65,9 +131,12 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    /* 阻塞直到 WiFi 连接成功或超过最大重试次数 */
+    /* 连接 WiFi，超时后继续运行 */
     wifi_station_startup();
 
-    /* WiFi 就绪后创建主任务 */
-    xTaskCreate(main_task, "main_task", 4096, NULL, 5, NULL);
+    /* 创建框架任务 */
+    xTaskCreate(io_task,      "io_task",      4096, NULL, 4, NULL);
+    xTaskCreate(sensor_task,  "sensor_task",  4096, NULL, 4, NULL);
+    xTaskCreate(network_task, "network_task", 4096, NULL, 5, NULL);
+    xTaskCreate(output_task,  "output_task",  4096, NULL, 3, NULL);
 }
