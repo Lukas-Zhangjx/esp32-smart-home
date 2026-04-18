@@ -98,10 +98,17 @@ static void output_task(void *pvParameters)
 
     ESP_LOGI(TAG, "output_task started");
 
+    /* 启动时闪烁 3 次，确认 LED 和任务正常运行 */
+    for (int i = 0; i < 3; i++) {
+        led_on();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        led_off();
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+
     /* --- 主循环 --- */
     while (1) {
-        /* TODO: LED 状态根据业务逻辑驱动（当前保持初始熄灭状态） */
-
+        /* TODO: LED 状态根据业务逻辑驱动 */
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
