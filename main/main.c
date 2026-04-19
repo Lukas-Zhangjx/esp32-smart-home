@@ -17,7 +17,7 @@ static const char *TAG = "main";
 /* 引脚定义 */
 #define DHT11_GPIO    GPIO_NUM_19
 #define LED_GPIO      GPIO_NUM_2
-#define OBSTACLE_GPIO  GPIO_NUM_22
+#define OBSTACLE_GPIO  GPIO_NUM_4
 #define IR_SENSOR_GPIO GPIO_NUM_23
 #define RELAY_GPIO     GPIO_NUM_15
 
@@ -52,9 +52,11 @@ static void io_task(void *pvParameters)
             last_ir = ir;
         }
 
-        /* 有人移动时通知灯光控制模块 */
+        /* 通知灯光控制模块 PIR 状态 */
         if (ir) {
             light_ctrl_on_motion();
+        } else {
+            light_ctrl_on_idle();
         }
 
         /* 检查自动关灯计时 */
