@@ -25,8 +25,8 @@
 
 static const char *TAG = "light_ctrl";
 
-/* 自动关灯超时：30 秒 */
-#define AUTO_TIMEOUT_US  (30LL * 1000 * 1000)
+/* 自动关灯超时：10 秒 */
+#define AUTO_TIMEOUT_US  (10LL * 1000 * 1000)
 
 /* 手动开关状态：1 = 手动常亮，0 = 未手动开 */
 static int s_manual_on = 0;
