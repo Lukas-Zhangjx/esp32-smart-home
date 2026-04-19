@@ -9,6 +9,7 @@
 #include "led.h"
 #include "relay.h"
 #include "obstacle.h"
+#include "light_ctrl.h"
 #include "ir_sensor.h"
 
 static const char *TAG = "main";
@@ -54,6 +55,14 @@ static void io_task(void *pvParameters)
             http_server_update_ir(ir);
             last_ir = ir;
         }
+
+        /* 有人移动时通知灯光控制模块 */
+        if (ir) {
+            light_ctrl_on_motion();
+        }
+
+        /* 检查自动关灯计时 */
+        light_ctrl_tick();
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -109,6 +118,7 @@ static void output_task(void *pvParameters)
     /* --- 模块初始化 --- */
     led_init(LED_GPIO);
     relay_init(RELAY_GPIO);
+    light_ctrl_init();
 
     ESP_LOGI(TAG, "output_task started");
 
