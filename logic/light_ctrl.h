@@ -35,6 +35,14 @@ void light_ctrl_on_motion(void);
 void light_ctrl_set_manual(int on);
 
 /**
+ * @brief  通知控制模块：PIR 变为空闲（无人）
+ *
+ * 解除手动关闭的抑制，下次进人可以重新自动开灯。
+ * 应在 io_task 检测到 ir=0 时调用。
+ */
+void light_ctrl_on_idle(void);
+
+/**
  * @brief  周期性检查自动关灯计时，应在 io_task 每轮循环调用
  */
 void light_ctrl_tick(void);

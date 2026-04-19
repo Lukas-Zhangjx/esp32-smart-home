@@ -52,9 +52,11 @@ static void io_task(void *pvParameters)
             last_ir = ir;
         }
 
-        /* 有人移动时通知灯光控制模块 */
+        /* 通知灯光控制模块 PIR 状态 */
         if (ir) {
             light_ctrl_on_motion();
+        } else {
+            light_ctrl_on_idle();
         }
 
         /* 检查自动关灯计时 */

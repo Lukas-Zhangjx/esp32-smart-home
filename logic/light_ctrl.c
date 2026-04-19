@@ -4,18 +4,21 @@
  *
  * 状态机：
  *
- *   ┌─────────────────────────────────────────┐
- *   │  manual_on=0, auto_active=0 → 灯灭      │ ← 初始/手动关/超时后
- *   └──────┬──────────────────────────────────┘
+ *   ┌──────────────────────────────────────────┐
+ *   │  manual_on=0, auto_active=0 → 灯灭       │ ← 初始/手动关/超时后
+ *   └──────┬───────────────────────────────────┘
  *          │ 检测到移动                手动开
  *          ▼                              ▼
  *   ┌─────────────────┐        ┌──────────────────┐
  *   │ auto_active=1   │        │ manual_on=1      │
- *   │ 灯亮，30s倒计时 │        │ 灯亮，常亮       │
+ *   │ 灯亮，10s倒计时 │        │ 灯亮，常亮       │
  *   └──────┬──────────┘        └──────────────────┘
- *          │ 超时（30s无移动）          │ 手动关
+ *          │ 超时（10s无移动）          │ 手动关
  *          ▼                            ▼
- *        灯灭                          灯灭
+ *        灯灭                     manual_off=1（抑制自动）
+ *                                       │ PIR 变空闲
+ *                                       ▼
+ *                                  manual_off=0（恢复）
  */
 
 #include "light_ctrl.h"
@@ -31,6 +34,9 @@ static const char *TAG = "light_ctrl";
 /* 手动开关状态：1 = 手动常亮，0 = 未手动开 */
 static int s_manual_on = 0;
 
+/* 手动关闭标志：用户主动关灯时置1，PIR 变空闲后清除，期间屏蔽自动开灯 */
+static int s_manual_off = 0;
+
 /* 自动模式是否激活 */
 static int s_auto_active = 0;
 
@@ -43,8 +49,9 @@ static int64_t s_last_motion_us = 0;
  */
 void light_ctrl_init(void)
 {
-    s_manual_on    = 0;
-    s_auto_active  = 0;
+    s_manual_on      = 0;
+    s_manual_off     = 0;
+    s_auto_active    = 0;
     s_last_motion_us = 0;
     relay_set(0);
     ESP_LOGI(TAG, "light ctrl init ok");
@@ -56,15 +63,32 @@ void light_ctrl_init(void)
  */
 void light_ctrl_on_motion(void)
 {
+    /* 用户手动关闭期间屏蔽自动触发，等 PIR 空闲后再恢复 */
+    if (s_manual_off) return;
+
     s_last_motion_us = esp_timer_get_time();
 
     if (!s_auto_active) {
         s_auto_active = 1;
         relay_set(1);
-        ESP_LOGI(TAG, "motion detected, light ON (auto 30s)");
+        ESP_LOGI(TAG, "motion detected, light ON (auto 10s)");
     } else {
         /* 已经亮着，只重置计时器 */
         ESP_LOGD(TAG, "motion: timer reset");
+    }
+}
+
+
+/**
+ * @brief  通知控制模块：PIR 变为空闲（无人）
+ *
+ * 用于解除手动关闭的抑制，下次进人可以重新自动开灯。
+ */
+void light_ctrl_on_idle(void)
+{
+    if (s_manual_off) {
+        s_manual_off = 0;
+        ESP_LOGI(TAG, "pir idle, manual-off suppression cleared");
     }
 }
 
@@ -77,12 +101,14 @@ void light_ctrl_set_manual(int on)
     s_manual_on = on;
 
     if (on) {
-        /* 手动开：常亮，清除自动计时（防止 30s 后被自动关掉） */
+        /* 手动开：常亮，清除所有抑制和自动计时 */
+        s_manual_off  = 0;
         s_auto_active = 0;
         relay_set(1);
         ESP_LOGI(TAG, "manual ON");
     } else {
-        /* 手动关：清除自动状态，立即关灯 */
+        /* 手动关：立即关灯，抑制自动开灯直到 PIR 空闲 */
+        s_manual_off  = 1;
         s_auto_active = 0;
         relay_set(0);
         ESP_LOGI(TAG, "manual OFF");
