@@ -89,7 +89,7 @@ static void sensor_task(void *pvParameters)
         int raw     = light_sensor_analog();
         int percent = light_sensor_to_percent(raw);
         int bright  = light_sensor_digital();
-        http_server_update_light(percent, bright);
+        http_server_update_light(percent, raw, bright);
 
         vTaskDelay(pdMS_TO_TICKS(2000));
     }

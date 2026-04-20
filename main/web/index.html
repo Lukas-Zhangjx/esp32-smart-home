@@ -184,6 +184,7 @@
         <span class="obstacle-dot"></span>
         <span id="bright-text">Bright</span>
       </span>
+      <span class="card-unit" style="font-size:0.75rem">raw: <span id="lux-raw">--</span></span>
     </div>
 
     <!-- Motion Sensor -->
@@ -237,6 +238,7 @@
           /* Light sensor */
           if (data.lux !== undefined) {
             document.getElementById('lux-value').textContent = data.lux;
+            document.getElementById('lux-raw').textContent = data.lux_raw;
             const bright = data.bright === 1;
             const bb = document.getElementById('bright-badge');
             bb.className = 'obstacle-badge ' + (bright ? 'clear' : 'detected');

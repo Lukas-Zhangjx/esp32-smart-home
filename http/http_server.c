@@ -48,8 +48,9 @@ static int s_obstacle_cache = 0;
 /* 缓存红外传感器状态：1 = 检测到移动，0 = 无移动 */
 static int s_ir_cache = 0;
 
-/* 缓存光敏传感器：百分比 0-100，数字状态 1=有光/0=暗 */
+/* 缓存光敏传感器：百分比 0-100，原始 ADC 值，数字状态 1=有光/0=暗 */
 static int s_light_percent = 0;
+static int s_light_raw     = 0;
 static int s_light_digital = 0;
 
 /**
@@ -76,9 +77,10 @@ void http_server_update_ir(int detected)
     s_ir_cache = detected;
 }
 
-void http_server_update_light(int percent, int digital)
+void http_server_update_light(int percent, int raw, int digital)
 {
     s_light_percent = percent;
+    s_light_raw     = raw;
     s_light_digital = digital;
 }
 
@@ -124,13 +126,14 @@ static esp_err_t handler_get_sensors(httpd_req_t *req)
     /* motion: 1 = 检测到移动，0 = 无移动                       */
     snprintf(buf, sizeof(buf),
              "{\"temperature\":%.1f,\"humidity\":%.1f,\"door\":%d,\"motion\":%d,"
-             "\"light\":%d,\"lux\":%d,\"bright\":%d}",
+             "\"light\":%d,\"lux\":%d,\"lux_raw\":%d,\"bright\":%d}",
              s_sensor_cache.temperature,
              s_sensor_cache.humidity,
              s_obstacle_cache,
              s_ir_cache,
              light_ctrl_get_state(),
              s_light_percent,
+             s_light_raw,
              s_light_digital);
 
     httpd_resp_set_type(req, "application/json");
