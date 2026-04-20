@@ -8,6 +8,10 @@ A Wi-Fi connected smart home system built on ESP32, featuring real-time sensor m
 
 > 📹 *Demo video coming soon*
 
+### Web UI
+
+![Web UI](docs/web_ui.png)
+
 ---
 
 ## Features
