@@ -214,6 +214,12 @@ Open that address in any browser on the same network.
 
 ---
 
+## Acknowledgements
+
+This project was developed together with [Claude](https://claude.ai) (Anthropic), which assisted with firmware architecture, driver implementation, control logic, and documentation throughout the entire development process.
+
+---
+
 ## License
 
 MIT
