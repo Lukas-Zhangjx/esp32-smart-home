@@ -206,7 +206,7 @@ Open that address in any browser on the same network.
 
 ## Roadmap
 
-- [ ] Replace DHT11 with AHT20 (I²C, more reliable)
+- [ ] Verify DHT11 temperature & humidity readings (new module pending)
 - [ ] Add OLED display (I²C, GPIO21/22 reserved)
 - [ ] Online weather via OpenWeatherMap API
 - [ ] MQTT support for remote access
