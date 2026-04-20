@@ -1,11 +1,11 @@
 /**
  * @file    ir_sensor.c
- * @brief   红外检测模块实现
+ * @brief   IR detection module implementation
  *
- * 适用于带数字输出的红外传感器模块（如 FC-51、TCRT5000 等）。
- * 模块 OUT 引脚低电平有效：
- *   检测到目标 → OUT 拉低 → GPIO 读到 0
- *   无目标     → OUT 释放 → 上拉拉高 → GPIO 读到 1
+ * Suitable for IR sensor modules with digital output (e.g. FC-51, TCRT5000, etc.).
+ * The module's OUT pin is active low:
+ *   Target detected → OUT pulled low  → GPIO reads 0
+ *   No target       → OUT released    → pull-up pulls high → GPIO reads 1
  */
 
 #include "ir_sensor.h"
@@ -13,14 +13,14 @@
 
 static const char *TAG = "ir_sensor";
 
-/* 记录初始化时配置的 GPIO 编号 */
+/* Stores the GPIO number configured at initialization */
 static gpio_num_t s_gpio_num = GPIO_NUM_NC;
 
 
 /**
- * @brief  初始化红外传感器，配置 GPIO 为上拉输入
+ * @brief  Initialize the IR sensor; configure GPIO as pull-up input
  *
- * @param gpio_num  连接 OUT 引脚的 GPIO 编号
+ * @param gpio_num  GPIO number connected to the OUT pin
  * @return ESP_OK / ESP_FAIL
  */
 esp_err_t ir_sensor_init(gpio_num_t gpio_num)
@@ -30,7 +30,7 @@ esp_err_t ir_sensor_init(gpio_num_t gpio_num)
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << gpio_num),
         .mode         = GPIO_MODE_INPUT,
-        .pull_up_en   = GPIO_PULLUP_DISABLE,   /* HC-SR501 自驱动，不需要上拉 */
+        .pull_up_en   = GPIO_PULLUP_DISABLE,   /* HC-SR501 is self-driven, no pull-up needed */
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type    = GPIO_INTR_DISABLE,
     };
@@ -47,12 +47,12 @@ esp_err_t ir_sensor_init(gpio_num_t gpio_num)
 
 
 /**
- * @brief  读取当前检测状态
+ * @brief  Read the current detection state
  *
- * @return 1 = 检测到目标（OUT=LOW），0 = 无目标（OUT=HIGH）
+ * @return 1 = target detected (OUT=LOW), 0 = no target (OUT=HIGH)
  */
 int ir_sensor_detected(void)
 {
-    /* HC-SR501 高电平有效：OUT=HIGH 表示检测到移动 */
+    /* HC-SR501 is active high: OUT=HIGH means motion detected */
     return gpio_get_level(s_gpio_num);
 }

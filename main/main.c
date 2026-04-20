@@ -16,7 +16,7 @@
 
 static const char *TAG = "main";
 
-/* 引脚定义 */
+/* Pin definitions */
 #define DHT11_GPIO    GPIO_NUM_19
 #define LED_GPIO      GPIO_NUM_2
 #define OBSTACLE_GPIO  GPIO_NUM_4
@@ -27,20 +27,21 @@ static const char *TAG = "main";
 
 
 /* ================================================================
- * io_task：GPIO 数字输入类模块
- *   职责：读取所有开关量输入，如障碍检测、按键等
- *   周期：100ms
+ * io_task: GPIO digital input module
+ *   Responsibility: read all digital switch inputs, e.g. obstacle
+ *                   detection, buttons, etc.
+ *   Period: 100 ms
  * ================================================================ */
 static void io_task(void *pvParameters)
 {
-    int last_obstacle = -1; /* 上次障碍物状态，-1 表示未初始化 */
-    int last_ir       = -1; /* 上次 IR 状态，-1 表示未初始化 */
+    int last_obstacle = -1; /* previous obstacle state, -1 = uninitialized */
+    int last_ir       = -1; /* previous IR state, -1 = uninitialized */
 
     ESP_LOGI(TAG, "io_task started");
 
-    /* --- 主循环 --- */
+    /* --- main loop --- */
     while (1) {
-        /* 门窗传感器（障碍物模块，GPIO22） */
+        /* Door/window sensor (obstacle module, GPIO22) */
         int obstacle = obstacle_detected();
         if (obstacle != last_obstacle) {
             ESP_LOGI(TAG, "door: %s", obstacle ? "CLOSED" : "OPEN");
@@ -48,7 +49,7 @@ static void io_task(void *pvParameters)
             last_obstacle = obstacle;
         }
 
-        /* 红外检测传感器（GPIO23） */
+        /* IR detection sensor (GPIO23) */
         int ir = ir_sensor_detected();
         if (ir != last_ir) {
             ESP_LOGI(TAG, "ir: %s", ir ? "DETECTED" : "clear");
@@ -56,14 +57,14 @@ static void io_task(void *pvParameters)
             last_ir = ir;
         }
 
-        /* 通知灯光控制模块 PIR 状态 */
+        /* Notify the light control module of the PIR state */
         if (ir) {
             light_ctrl_on_motion();
         } else {
             light_ctrl_on_idle();
         }
 
-        /* 检查自动关灯计时 */
+        /* Check the auto-off countdown timer */
         light_ctrl_tick();
 
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -72,20 +73,21 @@ static void io_task(void *pvParameters)
 
 
 /* ================================================================
- * sensor_task：模拟/总线传感器类模块
- *   职责：读取所有传感器并更新数据缓存，供 network_task 使用
- *   周期：2000ms（受 DHT11 采样限制）
+ * sensor_task: analog / bus sensor module
+ *   Responsibility: read all sensors and update the data cache
+ *                   for use by network_task
+ *   Period: 2000 ms (limited by DHT11 sampling rate)
  * ================================================================ */
 static void sensor_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "sensor_task started");
 
-    /* --- 主循环 --- */
+    /* --- main loop --- */
     while (1) {
-        /* DHT11 温湿度 */
+        /* DHT11 temperature and humidity */
         http_server_update_sensor();
 
-        /* 光敏传感器：模拟 + 数字 */
+        /* Light sensor: analog + digital */
         int raw     = light_sensor_analog();
         int percent = light_sensor_to_percent(raw);
         int bright  = light_sensor_digital();
@@ -97,31 +99,32 @@ static void sensor_task(void *pvParameters)
 
 
 /* ================================================================
- * network_task：网络服务类模块
- *   职责：启动并维护所有网络服务，如 HTTP Server、MQTT 等
+ * network_task: network service module
+ *   Responsibility: start and maintain all network services,
+ *                   e.g. HTTP Server, MQTT, etc.
  * ================================================================ */
 static void network_task(void *pvParameters)
 {
-    /* --- 模块初始化 --- */
+    /* --- module initialization --- */
     if (http_server_start() != ESP_OK) {
         ESP_LOGE(TAG, "http server failed to start");
     }
 
-    /* HTTP Server 内部由 esp_http_server 驱动，此任务无需主循环 */
+    /* HTTP Server is driven internally by esp_http_server; this task needs no main loop */
     vTaskDelete(NULL);
 }
 
 
 /* ================================================================
- * output_task：输出类模块
- *   职责：驱动所有输出设备，如 LED、OLED 等
- *   周期：根据输出设备需求定义
+ * output_task: output module
+ *   Responsibility: drive all output devices, e.g. LED, OLED, etc.
+ *   Period: defined by the requirements of each output device
  * ================================================================ */
 static void output_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "output_task started");
 
-    /* GPIO2 闪烁 3 次 */
+    /* Blink GPIO2 three times */
     for (int i = 0; i < 3; i++) {
         led_on();
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -130,10 +133,10 @@ static void output_task(void *pvParameters)
     }
 
 
-    /* 系统运行指示：常亮 */
+    /* System running indicator: stay on */
     led_on();
 
-    /* --- 主循环 --- */
+    /* --- main loop --- */
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -141,12 +144,13 @@ static void output_task(void *pvParameters)
 
 
 /* ================================================================
- * app_main：系统入口
- *   职责：初始化系统级组件，创建所有框架任务
+ * app_main: system entry point
+ *   Responsibility: initialize system-level components and create
+ *                   all framework tasks
  * ================================================================ */
 void app_main(void)
 {
-    /* 初始化 NVS */
+    /* Initialize NVS */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -154,10 +158,10 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    /* 连接 WiFi，超时后继续运行 */
+    /* Connect to WiFi; continue running even if it times out */
     wifi_station_startup();
 
-    /* 硬件模块初始化（在任务启动前完成，避免竞态） */
+    /* Hardware module initialization (done before tasks start to avoid race conditions) */
     led_init(LED_GPIO);
     relay_init(RELAY_GPIO);
     light_ctrl_init();
@@ -167,7 +171,7 @@ void app_main(void)
     dht11_init(DHT11_GPIO);
     light_sensor_init(LIGHT_DIGITAL_GPIO, LIGHT_ADC_CHANNEL);
 
-    /* 创建框架任务 */
+    /* Create framework tasks */
     xTaskCreate(io_task,      "io_task",      4096, NULL, 4, NULL);
     xTaskCreate(sensor_task,  "sensor_task",  4096, NULL, 4, NULL);
     xTaskCreate(network_task, "network_task", 4096, NULL, 5, NULL);

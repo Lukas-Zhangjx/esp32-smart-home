@@ -1,9 +1,10 @@
 /**
  * @file    relay.c
- * @brief   继电器 / GPIO 输出控制模块实现
+ * @brief   Relay / GPIO output control module implementation
  *
- * 推挽输出模式，高电平有效。
- * 当前支持单路输出（GPIO15），扩展多路时可改为数组。
+ * Push-pull output mode, active high.
+ * Currently supports a single output channel (GPIO15);
+ * extend to an array for multi-channel support.
  */
 
 #include "relay.h"
@@ -11,17 +12,17 @@
 
 static const char *TAG = "relay";
 
-/* 记录初始化时配置的 GPIO 编号 */
+/* Stores the GPIO number configured at initialization */
 static gpio_num_t s_gpio_num = GPIO_NUM_NC;
 
-/* 缓存当前状态：1 = 导通，0 = 断开 */
+/* Cached current state: 1 = on (conducting), 0 = off (open) */
 static int s_state = 0;
 
 
 /**
- * @brief  初始化继电器 GPIO，配置为推挽输出，默认断开
+ * @brief  Initialize the relay GPIO; configure as push-pull output, off by default
  *
- * @param gpio_num  连接继电器/LED 的 GPIO 编号
+ * @param gpio_num  GPIO number connected to the relay/LED
  * @return ESP_OK / ESP_FAIL
  */
 esp_err_t relay_init(gpio_num_t gpio_num)
@@ -42,7 +43,7 @@ esp_err_t relay_init(gpio_num_t gpio_num)
         return ESP_FAIL;
     }
 
-    /* 初始化后默认断开 */
+    /* Default to off after initialization */
     gpio_set_level(s_gpio_num, 0);
     s_state = 0;
 
@@ -52,10 +53,10 @@ esp_err_t relay_init(gpio_num_t gpio_num)
 
 
 /**
- * @brief  设置继电器状态
+ * @brief  Set the relay state
  *
- * @param state  1 = 导通，0 = 断开
- * @return       实际设置后的状态
+ * @param state  1 = on (conducting), 0 = off (open)
+ * @return       The actual state after being set
  */
 int relay_set(int state)
 {
@@ -67,9 +68,9 @@ int relay_set(int state)
 
 
 /**
- * @brief  获取当前继电器状态
+ * @brief  Get the current relay state
  *
- * @return 1 = 导通，0 = 断开
+ * @return 1 = on (conducting), 0 = off (open)
  */
 int relay_get_state(void)
 {

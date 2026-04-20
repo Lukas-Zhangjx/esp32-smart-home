@@ -1,10 +1,10 @@
 /**
  * @file    obstacle.c
- * @brief   障碍物检测模块实现
+ * @brief   Obstacle detection module implementation
  *
- * 模块 OUT 引脚为开漏输出，低电平有效：
- *   检测到障碍物 → OUT 拉低 → GPIO 读到 0
- *   无障碍物     → OUT 释放 → 上拉拉高 → GPIO 读到 1
+ * The module's OUT pin is open-drain output, active low:
+ *   Obstacle detected → OUT pulled low  → GPIO reads 0
+ *   No obstacle       → OUT released    → pull-up pulls high → GPIO reads 1
  */
 
 #include "obstacle.h"
@@ -12,14 +12,14 @@
 
 static const char *TAG = "obstacle";
 
-/* 记录初始化时配置的 GPIO 编号 */
+/* Stores the GPIO number configured at initialization */
 static gpio_num_t s_gpio_num = GPIO_NUM_NC;
 
 
 /**
- * @brief  初始化障碍物传感器，配置 GPIO 为上拉输入
+ * @brief  Initialize the obstacle sensor; configure GPIO as pull-up input
  *
- * @param gpio_num  连接 OUT 引脚的 GPIO 编号
+ * @param gpio_num  GPIO number connected to the OUT pin
  * @return ESP_OK / ESP_FAIL
  */
 esp_err_t obstacle_init(gpio_num_t gpio_num)
@@ -29,7 +29,7 @@ esp_err_t obstacle_init(gpio_num_t gpio_num)
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << gpio_num),
         .mode         = GPIO_MODE_INPUT,
-        .pull_up_en   = GPIO_PULLUP_ENABLE,   /* 上拉，无障碍时保持高电平 */
+        .pull_up_en   = GPIO_PULLUP_ENABLE,   /* pull-up, keeps high when no obstacle */
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type    = GPIO_INTR_DISABLE,
     };
@@ -46,12 +46,12 @@ esp_err_t obstacle_init(gpio_num_t gpio_num)
 
 
 /**
- * @brief  读取当前检测状态
+ * @brief  Read the current detection state
  *
- * @return 1 = 检测到障碍物（OUT=LOW），0 = 无障碍物（OUT=HIGH）
+ * @return 1 = obstacle detected (OUT=LOW), 0 = no obstacle (OUT=HIGH)
  */
 int obstacle_detected(void)
 {
-    /* OUT 低电平有效，取反后 1 表示"检测到" */
+    /* OUT is active low; invert so that 1 means "detected" */
     return gpio_get_level(s_gpio_num) == 0 ? 1 : 0;
 }

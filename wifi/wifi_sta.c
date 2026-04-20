@@ -133,8 +133,8 @@ void wifi_init_sta(void)
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-    /* 最多等待 30s：5次重试 × 每次约 5s 超时，留足余量
-     * 若驱动卡死不发事件，也能自动解除阻塞继续运行 */
+    /* Wait at most 30 s: 5 retries × ~5 s timeout each, with sufficient margin.
+     * If the driver stalls and never fires an event, this unblocks automatically and continues. */
     #define WIFI_WAIT_TIMEOUT_MS  30000
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
             WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
@@ -145,10 +145,10 @@ void wifi_init_sta(void)
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to '%s'", EXAMPLE_ESP_WIFI_SSID);
     } else if (bits & WIFI_FAIL_BIT) {
-        /* WiFi 连接失败，继续运行，HTTP 服务不可用但传感器仍可正常工作 */
+        /* WiFi connection failed; continue running — HTTP service unavailable but sensors still work */
         ESP_LOGW(TAG, "WiFi connect failed, running without network");
     } else {
-        /* 30s 超时仍无事件，驱动可能卡死，强制继续 */
+        /* 30 s timeout with no event; driver may have stalled, forcing continuation */
         ESP_LOGE(TAG, "WiFi wait timeout (%dms), continuing without network", WIFI_WAIT_TIMEOUT_MS);
     }
 }

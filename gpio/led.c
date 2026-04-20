@@ -1,9 +1,9 @@
 /**
  * @file    led.c
- * @brief   LED GPIO 控制模块实现
+ * @brief   LED GPIO control module implementation
  *
- * 推挽输出模式：GPIO 高电平 = LED 点亮，低电平 = LED 熄灭
- * 内部维护当前状态，避免每次都读取 GPIO 寄存器
+ * Push-pull output mode: GPIO high = LED on, GPIO low = LED off.
+ * The current state is maintained internally to avoid reading the GPIO register every time.
  */
 
 #include "led.h"
@@ -11,24 +11,24 @@
 
 static const char *TAG = "led";
 
-/* 记录初始化时配置的 GPIO 编号 */
+/* Stores the GPIO number configured at initialization */
 static gpio_num_t s_gpio_num = GPIO_NUM_NC;
 
-/* 缓存当前 LED 状态：1 = 点亮，0 = 熄灭 */
+/* Cached current LED state: 1 = on, 0 = off */
 static int s_state = 0;
 
 
 /**
- * @brief  初始化 LED GPIO，配置为推挽输出，默认熄灭
+ * @brief  Initialize the LED GPIO; configure as push-pull output, off by default
  *
- * @param gpio_num  连接 LED 的 GPIO 编号
+ * @param gpio_num  GPIO number connected to the LED
  * @return ESP_OK / ESP_FAIL
  */
 esp_err_t led_init(gpio_num_t gpio_num)
 {
     s_gpio_num = gpio_num;
 
-    /* 配置为推挽输出，不需要上拉/下拉 */
+    /* Configure as push-pull output; no pull-up/pull-down needed */
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << gpio_num),
         .mode         = GPIO_MODE_OUTPUT,
@@ -43,7 +43,7 @@ esp_err_t led_init(gpio_num_t gpio_num)
         return ESP_FAIL;
     }
 
-    /* 初始化后默认熄灭 */
+    /* Default to off after initialization */
     gpio_set_level(s_gpio_num, 0);
     s_state = 0;
 
@@ -52,7 +52,7 @@ esp_err_t led_init(gpio_num_t gpio_num)
 }
 
 /**
- * @brief  点亮 LED
+ * @brief  Turn the LED on
  */
 void led_on(void)
 {
@@ -62,7 +62,7 @@ void led_on(void)
 }
 
 /**
- * @brief  熄灭 LED
+ * @brief  Turn the LED off
  */
 void led_off(void)
 {
@@ -72,11 +72,11 @@ void led_off(void)
 }
 
 /**
- * @brief  翻转 LED 状态
+ * @brief  Toggle the LED state
  */
 void led_toggle(void)
 {
-    /* 根据缓存状态翻转，避免读取 GPIO 寄存器 */
+    /* Toggle based on the cached state to avoid reading the GPIO register */
     if (s_state) {
         led_off();
     } else {
@@ -85,9 +85,9 @@ void led_toggle(void)
 }
 
 /**
- * @brief  获取当前 LED 状态
+ * @brief  Get the current LED state
  *
- * @return 1 = 点亮，0 = 熄灭
+ * @return 1 = on, 0 = off
  */
 int led_get_state(void)
 {

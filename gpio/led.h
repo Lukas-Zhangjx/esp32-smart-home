@@ -1,9 +1,9 @@
 /**
  * @file    led.h
- * @brief   LED GPIO 控制模块公共接口
+ * @brief   LED GPIO control module public interface
  *
- * 使用推挽输出模式驱动 LED，高电平点亮。
- * 接线：GPIO → 220Ω 限流电阻 → LED阳极 → LED阴极 → GND
+ * Drives the LED using push-pull output mode; high level = on.
+ * Wiring: GPIO → 220 Ω current-limiting resistor → LED anode → LED cathode → GND
  */
 
 #ifndef LED_H
@@ -13,32 +13,32 @@
 #include "driver/gpio.h"
 
 /**
- * @brief  初始化 LED GPIO，配置为推挽输出，默认熄灭
+ * @brief  Initialize the LED GPIO; configure as push-pull output, off by default
  *
- * @param gpio_num  连接 LED 的 GPIO 编号
- * @return ESP_OK 成功，ESP_FAIL 失败
+ * @param gpio_num  GPIO number connected to the LED
+ * @return ESP_OK on success, ESP_FAIL on failure
  */
 esp_err_t led_init(gpio_num_t gpio_num);
 
 /**
- * @brief  点亮 LED
+ * @brief  Turn the LED on
  */
 void led_on(void);
 
 /**
- * @brief  熄灭 LED
+ * @brief  Turn the LED off
  */
 void led_off(void);
 
 /**
- * @brief  翻转 LED 状态
+ * @brief  Toggle the LED state
  */
 void led_toggle(void);
 
 /**
- * @brief  获取当前 LED 状态
+ * @brief  Get the current LED state
  *
- * @return 1 = 点亮，0 = 熄灭
+ * @return 1 = on, 0 = off
  */
 int led_get_state(void);
 

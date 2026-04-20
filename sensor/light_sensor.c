@@ -1,9 +1,9 @@
 /**
  * @file    light_sensor.c
- * @brief   光敏传感器模块实现
+ * @brief   Light sensor module implementation
  *
- * AO → ADC1_CH6 (GPIO34)：读取光照模拟值
- * DO → GPIO13：数字阈值输出，低电平有效（有光=LOW）
+ * AO → ADC1_CH6 (GPIO34): reads the analog light intensity value
+ * DO → GPIO13: digital threshold output, active low (bright = LOW)
  */
 
 #include "light_sensor.h"
@@ -11,21 +11,21 @@
 
 static const char *TAG = "light_sensor";
 
-/* GPIO 和 ADC 句柄 */
+/* GPIO and ADC handles */
 static gpio_num_t        s_digital_gpio = GPIO_NUM_NC;
 static adc_oneshot_unit_handle_t s_adc_handle = NULL;
 static adc_channel_t     s_adc_channel  = ADC_CHANNEL_6;
 
 
 /**
- * @brief  初始化光敏传感器
+ * @brief  Initialize the light sensor
  */
 esp_err_t light_sensor_init(gpio_num_t digital_gpio, adc_channel_t adc_channel)
 {
     s_digital_gpio = digital_gpio;
     s_adc_channel  = adc_channel;
 
-    /* ── 数字输入：上拉输入，DO 低电平有效 ── */
+    /* ── Digital input: pull-up input, DO active low ── */
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << digital_gpio),
         .mode         = GPIO_MODE_INPUT,
@@ -39,7 +39,7 @@ esp_err_t light_sensor_init(gpio_num_t digital_gpio, adc_channel_t adc_channel)
         return ESP_FAIL;
     }
 
-    /* ── ADC1 oneshot 初始化 ── */
+    /* ── ADC1 oneshot initialization ── */
     adc_oneshot_unit_init_cfg_t unit_cfg = {
         .unit_id  = ADC_UNIT_1,
         .ulp_mode = ADC_ULP_MODE_DISABLE,
@@ -50,7 +50,7 @@ esp_err_t light_sensor_init(gpio_num_t digital_gpio, adc_channel_t adc_channel)
         return ESP_FAIL;
     }
 
-    /* ── 通道配置：12bit，11dB 衰减（量程 0~3.9V）── */
+    /* ── Channel configuration: 12-bit, 11 dB attenuation (range 0~3.9 V) ── */
     adc_oneshot_chan_cfg_t chan_cfg = {
         .bitwidth = ADC_BITWIDTH_12,
         .atten    = ADC_ATTEN_DB_11,
@@ -67,21 +67,21 @@ esp_err_t light_sensor_init(gpio_num_t digital_gpio, adc_channel_t adc_channel)
 
 
 /**
- * @brief  读取数字输出状态
+ * @brief  Read the digital output state
  *
- * @return 1 = 有光，0 = 暗
+ * @return 1 = bright, 0 = dark
  */
 int light_sensor_digital(void)
 {
-    /* DO 低电平有效：GPIO=0 → 有光 */
+    /* DO is active low: GPIO=0 → bright */
     return gpio_get_level(s_digital_gpio) == 0 ? 1 : 0;
 }
 
 
 /**
- * @brief  读取 ADC 原始值
+ * @brief  Read the raw ADC value
  *
- * @return 0-4095，失败返回 -1
+ * @return 0-4095, returns -1 on failure
  */
 int light_sensor_analog(void)
 {
@@ -96,12 +96,12 @@ int light_sensor_analog(void)
 
 
 /**
- * @brief  ADC 原始值转光照百分比（0=暗，100=最亮）
+ * @brief  Convert a raw ADC value to a light intensity percentage (0=dark, 100=brightest)
  */
 int light_sensor_to_percent(int raw)
 {
     if (raw < 0) return 0;
-    /* 光照越强 → 光敏电阻阻值越小 → 分压越低 → ADC 值越小，取反映射 */
+    /* Higher light → lower LDR resistance → lower voltage divider → lower ADC value; invert to map */
     int percent = 100 - (raw * 100 / 4095);
     if (percent < 0)   percent = 0;
     if (percent > 100) percent = 100;

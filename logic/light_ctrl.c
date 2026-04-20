@@ -1,24 +1,25 @@
 /**
  * @file    light_ctrl.c
- * @brief   灯光自动控制逻辑模块实现
+ * @brief   Automatic light control logic module implementation
  *
- * 状态机：
+ * State machine:
  *
  *   ┌──────────────────────────────────────────┐
- *   │  manual_on=0, auto_active=0 → 灯灭       │ ← 初始/手动关/超时后
+ *   │  manual_on=0, auto_active=0 → light OFF  │ ← initial / manual off / after timeout
  *   └──────┬───────────────────────────────────┘
- *          │ 检测到移动                手动开
+ *          │ motion detected          manual on
  *          ▼                              ▼
  *   ┌─────────────────┐        ┌──────────────────┐
  *   │ auto_active=1   │        │ manual_on=1      │
- *   │ 灯亮，10s倒计时 │        │ 灯亮，常亮       │
+ *   │ light ON, 10s   │        │ light ON, stay   │
+ *   │ countdown       │        │                  │
  *   └──────┬──────────┘        └──────────────────┘
- *          │ 超时（10s无移动）          │ 手动关
+ *          │ timeout (10s no motion)    │ manual off
  *          ▼                            ▼
- *        灯灭                     manual_off=1（抑制自动）
- *                                       │ PIR 变空闲
+ *        light OFF              manual_off=1 (suppress auto)
+ *                                       │ PIR goes idle
  *                                       ▼
- *                                  manual_off=0（恢复）
+ *                                  manual_off=0 (restored)
  */
 
 #include "light_ctrl.h"
@@ -28,24 +29,25 @@
 
 static const char *TAG = "light_ctrl";
 
-/* 自动关灯超时：10 秒 */
+/* Auto-off timeout: 10 seconds */
 #define AUTO_TIMEOUT_US  (10LL * 1000 * 1000)
 
-/* 手动开关状态：1 = 手动常亮，0 = 未手动开 */
+/* Manual on state: 1 = manually always on, 0 = not manually on */
 static int s_manual_on = 0;
 
-/* 手动关闭标志：用户主动关灯时置1，PIR 变空闲后清除，期间屏蔽自动开灯 */
+/* Manual off flag: set to 1 when the user explicitly turns off the light;
+ * cleared when PIR goes idle; suppresses auto-on in the meantime */
 static int s_manual_off = 0;
 
-/* 自动模式是否激活 */
+/* Whether auto mode is active */
 static int s_auto_active = 0;
 
-/* 上次检测到移动的时间戳（微秒） */
+/* Timestamp of the last detected motion (microseconds) */
 static int64_t s_last_motion_us = 0;
 
 
 /**
- * @brief  初始化灯光控制模块，默认关灯
+ * @brief  Initialize the light control module; light off by default
  */
 void light_ctrl_init(void)
 {
@@ -59,11 +61,12 @@ void light_ctrl_init(void)
 
 
 /**
- * @brief  通知控制模块：检测到人体移动
+ * @brief  Notify the control module that human motion has been detected
  */
 void light_ctrl_on_motion(void)
 {
-    /* 用户手动关闭期间屏蔽自动触发，等 PIR 空闲后再恢复 */
+    /* While the user has manually turned off the light, suppress auto-trigger
+     * until PIR goes idle */
     if (s_manual_off) return;
 
     s_last_motion_us = esp_timer_get_time();
@@ -73,16 +76,17 @@ void light_ctrl_on_motion(void)
         relay_set(1);
         ESP_LOGI(TAG, "motion detected, light ON (auto 10s)");
     } else {
-        /* 已经亮着，只重置计时器 */
+        /* Already on; just reset the timer */
         ESP_LOGD(TAG, "motion: timer reset");
     }
 }
 
 
 /**
- * @brief  通知控制模块：PIR 变为空闲（无人）
+ * @brief  Notify the control module that PIR has gone idle (no person present)
  *
- * 用于解除手动关闭的抑制，下次进人可以重新自动开灯。
+ * Used to clear the manual-off suppression so that the next person entering
+ * can trigger auto-on again.
  */
 void light_ctrl_on_idle(void)
 {
@@ -94,20 +98,20 @@ void light_ctrl_on_idle(void)
 
 
 /**
- * @brief  手动设置灯光状态（来自网页开关）
+ * @brief  Manually set the light state (from the web switch)
  */
 void light_ctrl_set_manual(int on)
 {
     s_manual_on = on;
 
     if (on) {
-        /* 手动开：常亮，清除所有抑制和自动计时 */
+        /* Manual on: always on, clear all suppression and auto timer */
         s_manual_off  = 0;
         s_auto_active = 0;
         relay_set(1);
         ESP_LOGI(TAG, "manual ON");
     } else {
-        /* 手动关：立即关灯，抑制自动开灯直到 PIR 空闲 */
+        /* Manual off: turn off immediately, suppress auto-on until PIR goes idle */
         s_manual_off  = 1;
         s_auto_active = 0;
         relay_set(0);
@@ -117,13 +121,13 @@ void light_ctrl_set_manual(int on)
 
 
 /**
- * @brief  周期性检查自动关灯计时
+ * @brief  Periodically check the auto-off countdown timer
  *
- * 应在 io_task 每轮循环（100ms）调用。
+ * Should be called every io_task loop iteration (100 ms).
  */
 void light_ctrl_tick(void)
 {
-    /* 手动常亮或自动未激活时不需要检查 */
+    /* No check needed when manually always on or when auto mode is not active */
     if (s_manual_on || !s_auto_active) return;
 
     int64_t elapsed = esp_timer_get_time() - s_last_motion_us;
@@ -136,7 +140,7 @@ void light_ctrl_tick(void)
 
 
 /**
- * @brief  获取当前灯光实际状态
+ * @brief  Get the current actual light state
  */
 int light_ctrl_get_state(void)
 {

@@ -1,24 +1,24 @@
 /**
  * @file    dht11.c
- * @brief   DHT11 温湿度传感器驱动实现
+ * @brief   DHT11 temperature and humidity sensor driver implementation
  *
- * 单总线时序（参考 DHT11 datasheet）：
+ * Single-wire timing (refer to the DHT11 datasheet):
  *
- *  主机起始信号：
- *    DATA 拉低 >= 18ms → 拉高 20~40μs
+ *  Host start signal:
+ *    DATA pulled low >= 18 ms → pulled high 20~40 μs
  *
- *  DHT11 响应：
- *    拉低 80μs → 拉高 80μs → 开始发送 40bit 数据
+ *  DHT11 response:
+ *    Pulled low 80 μs → pulled high 80 μs → start transmitting 40-bit data
  *
- *  bit 编码：
- *    "0"：50μs 低电平 + 26~28μs 高电平
- *    "1"：50μs 低电平 + 70μs 高电平
- *    以高电平持续时间区分 0/1，阈值约 40μs
+ *  Bit encoding:
+ *    "0": 50 μs low level + 26~28 μs high level
+ *    "1": 50 μs low level + 70 μs high level
+ *    Bit value is determined by the duration of the high level; threshold ~40 μs
  *
- *  数据格式（40bit）：
- *    [39:32] 湿度整数  [31:24] 湿度小数（DHT11 恒为 0）
- *    [23:16] 温度整数  [15: 8] 温度小数（DHT11 恒为 0）
- *    [ 7: 0] 校验和 = 前四字节之和低8位
+ *  Data format (40 bits):
+ *    [39:32] humidity integer  [31:24] humidity fraction (always 0 for DHT11)
+ *    [23:16] temperature integer [15:8] temperature fraction (always 0 for DHT11)
+ *    [ 7: 0] checksum = lower 8 bits of the sum of the first four bytes
  */
 
 #include <string.h>
@@ -31,26 +31,27 @@
 
 static const char *TAG = "dht11";
 
-/* 记录初始化时配置的 GPIO 编号 */
+/* Stores the GPIO number configured at initialization */
 static gpio_num_t s_gpio_num = GPIO_NUM_NC;
 
-/* 等待总线电平变化的超时时间（μs）
- * DHT11 响应信号最长 80μs，留足余量设为 200μs */
+/* Timeout for waiting on a bus level change (μs).
+ * DHT11 response signal is at most 80 μs; set to 200 μs for sufficient margin. */
 #define DHT11_TIMEOUT_US  200
 
 
 /**
- * @brief  等待 DATA 线变为指定电平，返回等待时间（μs），超时返回 -1
+ * @brief  Wait for the DATA line to reach the specified level; returns elapsed
+ *         time in μs, or -1 on timeout.
  *
- * @param level  期望电平（0 或 1）
- * @return 等待耗时（μs），超时返回 -1
+ * @param level  Expected level (0 or 1)
+ * @return Elapsed time (μs), or -1 on timeout
  */
 static int wait_for_level(int level)
 {
     int elapsed = 0;
     while (gpio_get_level(s_gpio_num) != level) {
         if (elapsed >= DHT11_TIMEOUT_US) {
-            return -1; /* 超时 */
+            return -1; /* timeout */
         }
         ets_delay_us(1);
         elapsed++;
@@ -60,20 +61,20 @@ static int wait_for_level(int level)
 
 
 /**
- * @brief  初始化 DHT11，配置 DATA 引脚为开漏输出模式
+ * @brief  Initialize DHT11; configure the DATA pin as open-drain output
  *
- * @param gpio_num  DATA 引脚编号
+ * @param gpio_num  DATA pin number
  * @return ESP_OK / ESP_FAIL
  */
 esp_err_t dht11_init(gpio_num_t gpio_num)
 {
     s_gpio_num = gpio_num;
 
-    /* 配置为开漏模式：可输出低电平，释放后由上拉电阻拉高 */
+    /* Configure as open-drain: can drive low; when released, pull-up resistor pulls high */
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << gpio_num),
-        .mode         = GPIO_MODE_INPUT_OUTPUT_OD, /* 开漏，可读可写 */
-        .pull_up_en   = GPIO_PULLUP_ENABLE,        /* 使能内部上拉 */
+        .mode         = GPIO_MODE_INPUT_OUTPUT_OD, /* open-drain, readable and writable */
+        .pull_up_en   = GPIO_PULLUP_ENABLE,        /* enable internal pull-up */
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type    = GPIO_INTR_DISABLE,
     };
@@ -84,7 +85,7 @@ esp_err_t dht11_init(gpio_num_t gpio_num)
         return ESP_FAIL;
     }
 
-    /* 初始化后拉高总线，等待 DHT11 稳定（上电后需要 1s） */
+    /* Pull the bus high after initialization and wait for DHT11 to stabilize (needs 1 s after power-on) */
     gpio_set_level(s_gpio_num, 1);
     vTaskDelay(pdMS_TO_TICKS(1000));
 
@@ -94,30 +95,31 @@ esp_err_t dht11_init(gpio_num_t gpio_num)
 
 
 /**
- * @brief  读取一次 DHT11 的温湿度数据
+ * @brief  Read one set of temperature and humidity data from DHT11
  *
- * @param data  输出结果
+ * @param data  Output result
  * @return ESP_OK / ESP_ERR_TIMEOUT / ESP_ERR_INVALID_CRC
  */
 esp_err_t dht11_read(dht11_data_t *data)
 {
-    uint8_t raw[5] = {0}; /* 40bit = 5字节原始数据 */
+    uint8_t raw[5] = {0}; /* 40 bits = 5 bytes of raw data */
 
-    /* ---- 1. 主机发起起始信号 ---- */
-    /* 拉低 >= 18ms，通知 DHT11 开始通信 */
+    /* ---- 1. Host sends start signal ---- */
+    /* Pull low >= 18 ms to notify DHT11 to begin communication */
     gpio_set_level(s_gpio_num, 0);
-    vTaskDelay(pdMS_TO_TICKS(20)); /* 20ms，大于最低要求 18ms */
+    vTaskDelay(pdMS_TO_TICKS(20)); /* 20 ms, exceeds the minimum 18 ms requirement */
 
-    /* ---- 2. 关闭中断后进行时序关键段 ---- */
+    /* ---- 2. Disable interrupts before the timing-critical section ---- */
     portDISABLE_INTERRUPTS();
 
-    /* 释放总线：切换为纯输入模式，彻底撤掉输出驱动，由上拉电阻拉高
-     * 开漏模式 set(1) 在某些情况下释放不干净，纯输入最可靠 */
+    /* Release the bus: switch to pure input mode to completely remove the output driver;
+     * the pull-up resistor pulls the line high.
+     * open-drain set(1) may not release cleanly in some cases; pure input is most reliable. */
     gpio_set_direction(s_gpio_num, GPIO_MODE_INPUT);
     ets_delay_us(30);
 
-    /* ---- 3. 等待 DHT11 响应 ---- */
-    /* 响应：先拉低 80μs */
+    /* ---- 3. Wait for DHT11 response ---- */
+    /* Response: first pulled low for 80 μs */
     if (wait_for_level(0) < 0) {
         portENABLE_INTERRUPTS();
         gpio_set_direction(s_gpio_num, GPIO_MODE_INPUT_OUTPUT_OD);
@@ -125,7 +127,7 @@ esp_err_t dht11_read(dht11_data_t *data)
         ESP_LOGE(TAG, "timeout waiting for DHT11 response low");
         return ESP_ERR_TIMEOUT;
     }
-    /* 再拉高 80μs */
+    /* Then pulled high for 80 μs */
     if (wait_for_level(1) < 0) {
         portENABLE_INTERRUPTS();
         gpio_set_direction(s_gpio_num, GPIO_MODE_INPUT_OUTPUT_OD);
@@ -134,9 +136,9 @@ esp_err_t dht11_read(dht11_data_t *data)
         return ESP_ERR_TIMEOUT;
     }
 
-    /* ---- 3. 读取 40bit 数据 ---- */
+    /* ---- 3. Read 40 bits of data ---- */
     for (int i = 0; i < 40; i++) {
-        /* 每个 bit 以 50μs 低电平开始 */
+        /* Each bit starts with 50 μs low level */
         if (wait_for_level(0) < 0) {
             portENABLE_INTERRUPTS();
             gpio_set_direction(s_gpio_num, GPIO_MODE_INPUT_OUTPUT_OD);
@@ -144,9 +146,9 @@ esp_err_t dht11_read(dht11_data_t *data)
             ESP_LOGE(TAG, "timeout at bit %d low", i);
             return ESP_ERR_TIMEOUT;
         }
-        /* 高电平持续时间决定 bit 值：
-         *   < 40μs → bit 0
-         *   >= 40μs → bit 1 */
+        /* High-level duration determines the bit value:
+         *   < 40 μs  → bit 0
+         *   >= 40 μs → bit 1 */
         if (wait_for_level(1) < 0) {
             portENABLE_INTERRUPTS();
             gpio_set_direction(s_gpio_num, GPIO_MODE_INPUT_OUTPUT_OD);
@@ -155,9 +157,9 @@ esp_err_t dht11_read(dht11_data_t *data)
             return ESP_ERR_TIMEOUT;
         }
 
-        ets_delay_us(40); /* 等待 40μs 后采样 */
+        ets_delay_us(40); /* wait 40 μs, then sample */
 
-        /* 此时高电平还在持续 → bit1，已经结束 → bit0 */
+        /* If the high level is still present → bit 1; if it has ended → bit 0 */
         raw[i / 8] <<= 1;
         if (gpio_get_level(s_gpio_num) == 1) {
             raw[i / 8] |= 1;
@@ -166,19 +168,19 @@ esp_err_t dht11_read(dht11_data_t *data)
 
     portENABLE_INTERRUPTS();
 
-    /* 恢复开漏输出，总线拉高，等待下次通信 */
+    /* Restore open-drain output, pull bus high, ready for next communication */
     gpio_set_direction(s_gpio_num, GPIO_MODE_INPUT_OUTPUT_OD);
     gpio_set_level(s_gpio_num, 1);
 
-    /* ---- 4. 校验和验证 ---- */
+    /* ---- 4. Checksum verification ---- */
     uint8_t checksum = raw[0] + raw[1] + raw[2] + raw[3];
     if (checksum != raw[4]) {
         ESP_LOGE(TAG, "checksum error: calc=0x%02X recv=0x%02X", checksum, raw[4]);
         return ESP_ERR_INVALID_CRC;
     }
 
-    /* ---- 5. 解析数据 ---- */
-    /* DHT11 小数部分（raw[1], raw[3]）恒为 0，直接取整数部分 */
+    /* ---- 5. Parse data ---- */
+    /* DHT11 fractional parts (raw[1], raw[3]) are always 0; use integer parts directly */
     data->humidity    = (float)raw[0];
     data->temperature = (float)raw[2];
 
